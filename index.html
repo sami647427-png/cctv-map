@@ -1,0 +1,825 @@
+
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>نظام مراقبة تلفزيونية - خريطة GIS</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" />
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        
+        .header {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            padding: 1rem;
+            text-align: center;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        
+        .header h1 {
+            color: white;
+            font-size: 1.8rem;
+            margin-bottom: 0.5rem;
+        }
+        
+        .header p {
+            color: rgba(255, 255, 255, 0.9);
+            font-size: 0.9rem;
+        }
+        
+        .container {
+            display: flex;
+            height: calc(100vh - 80px);
+        }
+        
+        .sidebar {
+            width: 300px;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            padding: 1.5rem;
+            overflow-y: auto;
+            border-left: 1px solid rgba(0, 0, 0, 0.1);
+        }
+        
+        .map-container {
+            flex: 1;
+            position: relative;
+        }
+        
+        #map {
+            width: 100%;
+            height: 100%;
+            border-radius: 0;
+        }
+        
+        .legend {
+            background: white;
+            padding: 1rem;
+            margin-bottom: 1.5rem;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+        
+        .legend h3 {
+            color: #333;
+            margin-bottom: 1rem;
+            font-size: 1.1rem;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 0.5rem;
+        }
+        
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin-bottom: 0.8rem;
+            padding: 0.5rem;
+            border-radius: 4px;
+            transition: background 0.3s ease;
+        }
+        
+        .legend-item:hover {
+            background: rgba(102, 126, 234, 0.1);
+        }
+        
+        .legend-icon {
+            width: 20px;
+            height: 20px;
+            margin-left: 10px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+        
+        .camera-high { background: #e74c3c; }
+        .camera-medium { background: #f39c12; }
+        .camera-low { background: #27ae60; }
+        .coverage { background: rgba(52, 152, 219, 0.3); border: 2px solid #3498db; border-radius: 4px; }
+        
+        .stats {
+            background: white;
+            padding: 1rem;
+            margin-bottom: 1.5rem;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+        
+        .stats h3 {
+            color: #333;
+            margin-bottom: 1rem;
+            font-size: 1.1rem;
+            border-bottom: 2px solid #27ae60;
+            padding-bottom: 0.5rem;
+        }
+        
+        .stat-item {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 0.5rem;
+            padding: 0.3rem 0;
+        }
+        
+        .stat-label {
+            color: #666;
+            font-size: 0.9rem;
+        }
+        
+        .stat-value {
+            color: #333;
+            font-weight: bold;
+            font-size: 0.9rem;
+        }
+        
+        .controls {
+            background: white;
+            padding: 1rem;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+        
+        .controls h3 {
+            color: #333;
+            margin-bottom: 1rem;
+            font-size: 1.1rem;
+            border-bottom: 2px solid #f39c12;
+            padding-bottom: 0.5rem;
+        }
+        
+        .control-group {
+            margin-bottom: 1rem;
+        }
+        
+        .control-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            color: #666;
+            font-size: 0.9rem;
+        }
+        
+        .control-group button {
+            width: 100%;
+            padding: 0.7rem;
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            transition: all 0.3s ease;
+            margin-bottom: 0.5rem;
+        }
+        
+        .control-group button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+        }
+        
+        .control-group button.delete-mode {
+            background: linear-gradient(45deg, #e74c3c, #c0392b);
+        }
+        
+        .control-group button.delete-mode:hover {
+            box-shadow: 0 4px 15px rgba(231, 76, 60, 0.4);
+        }
+        
+        .control-group input[type="range"] {
+            width: 100%;
+            margin-bottom: 0.5rem;
+        }
+        
+        .custom-popup {
+            font-family: inherit;
+        }
+        
+        .popup-header {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+            padding: 0.8rem;
+            margin: -0.5rem -0.7rem 0.5rem -0.7rem;
+            border-radius: 4px 4px 0 0;
+            font-weight: bold;
+            text-align: center;
+        }
+        
+        .popup-content {
+            padding: 0.5rem 0;
+        }
+        
+        .popup-item {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 0.3rem;
+            padding: 0.2rem 0;
+        }
+        
+        .popup-label {
+            color: #666;
+            font-size: 0.85rem;
+        }
+        
+        .popup-value {
+            color: #333;
+            font-weight: bold;
+            font-size: 0.85rem;
+        }
+        
+        .delete-cursor {
+            cursor: crosshair !important;
+        }
+        
+        .delete-message {
+            background: #ffebee;
+            border: 1px solid #ffcdd2;
+            color: #c62828;
+            padding: 0.8rem;
+            border-radius: 6px;
+            margin-bottom: 1rem;
+            font-size: 0.9rem;
+            text-align: center;
+            display: none;
+        }
+        
+        .delete-message.show {
+            display: block;
+        }
+        
+        @media (max-width: 768px) {
+            .container {
+                flex-direction: column;
+            }
+            
+            .sidebar {
+                width: 100%;
+                height: 250px;
+                order: 2;
+                padding: 1rem;
+            }
+            
+            .map-container {
+                height: calc(100vh - 330px);
+                order: 1;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🎥 نظام مراقبة تلفزيوني </h1>
+        <p>خريطة تفاعلية لتوزيع كاميرات المراقبة باستخدام نظم المعلومات الجغرافية</p>
+    </div>
+    
+    <div class="container">
+        <div class="map-container">
+            <div id="map"></div>
+        </div>
+        
+        <div class="sidebar">
+            <div class="legend">
+                <h3>🗺️ دليل الخريطة</h3>
+                <div class="legend-item">
+                    <div class="legend-icon camera-high"></div>
+                    <span>كاميرا أولوية عالية</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-icon camera-medium"></div>
+                    <span>كاميرا أولوية متوسطة</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-icon camera-low"></div>
+                    <span>كاميرا أولوية منخفضة</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-icon coverage"></div>
+                    <span>نطاق التغطية</span>
+                </div>
+                <div class="legend-item">
+                    <div style="width: 20px; height: 20px; background: #2c3e50; border-radius: 50%; margin-left: 10px; display: flex; align-items: center; justify-content: center; color: white; font-size: 10px;">🕌</div>
+                    <span>المعالم والمواقع المهمة</span>
+                </div>
+            </div>
+            
+            <div class="stat-value">
+                <h3>📊 إحصائيات النظام</h3>
+                <div class="stat-item">
+                    <span class="stat-label">إجمالي الكاميرات:</span>
+                    <span class="stat-value" id="total-cameras">0</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">أولوية عالية:</span>
+                    <span class="stat-value" id="high-priority">0</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">أولوية متوسطة:</span>
+                    <span class="stat-value" id="medium-priority">0</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">أولوية منخفضة:</span>
+                    <span class="stat-value" id="low-priority">0</span>
+                </div>
+            </div>
+            
+            <div class="controls">
+                <h3>🎛️ أدوات التحكم</h3>
+                
+                <div class="delete-message" id="delete-message">
+                    🗑️ وضع الحذف مفعل - انقر على أي كاميرا لحذفها
+                </div>
+                
+                <div class="control-group">
+                    <button onclick="toggleCoverage()">إظهار/إخفاء نطاق التغطية</button>
+                    <button onclick="filterByPriority('all')">عرض جميع الكاميرات</button>
+                    <button onclick="filterByPriority('high')">الأولوية العالية فقط</button>
+                    <button onclick="addCamera()">إضافة كاميرا جديدة</button>
+                    <button onclick="toggleDeleteMode()" id="delete-btn">🗑️ تفعيل وضع الحذف</button>
+                </div>
+                <div class="control-group">
+                    <label>نطاق التغطية (متر):</label>
+                    <input type="range" id="coverage-range" min="50" max="500" value="200" onchange="updateCoverageRadius(this.value)">
+                    <span id="coverage-value">200 متر</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
+    <script>
+        // إعداد الخريطة
+        const map = L.map('map').setView([21.4858, 39.1925], 13); // جدة، السعودية
+        
+        // إضافة طبقة الخريطة الأساسية
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap contributors'
+        }).addTo(map);
+        
+        // بيانات الكاميرات النموذجية
+        let cameras = [
+            {
+                id: 1,
+                name: "كاميرا طريق السداد",
+                lat: 21.2647926,
+                lng: 40.4101379,
+                priority: "high",
+                type: "تقاطع رئيسي",
+                status: "نشطة",
+                coverage: 200
+            },
+            {
+                id: 2,
+                name: "كاميرا الحرم المكي",
+                lat: 21.4225,
+                lng: 39.8262,
+                priority: "high",
+                type: "منطقة مقدسة",
+                status: "نشطة",
+                coverage: 300
+            },
+            {
+                id: 3,
+                name: "كاميرا الكورنيش",
+                lat: 21.5169,
+                lng: 39.1748,
+                priority: "medium",
+                type: "منطقة ترفيهية",
+                status: "نشطة",
+                coverage: 150
+            },
+            {
+                id: 4,
+                name: "كاميرا البلد",
+                lat: 21.4833,
+                lng: 39.1831,
+                priority: "medium",
+                type: "منطقة تجارية",
+                status: "صيانة",
+                coverage: 180
+            },
+            {
+                id: 5,
+                name: "كاميرا الروضة",
+                lat: 21.5433,
+                lng: 39.1728,
+                priority: "high",
+                type: "منطقة سكنية",
+                status: "نشطة",
+                coverage: 120
+            },
+            {
+                id: 6,
+                name: "كاميرا النزهة",
+                lat: 21.5611,
+                lng: 39.1422,
+                priority: "high",
+				
+                type: "منطقة سكنية",
+                status: "نشطة",
+                coverage: 100
+            },
+            {
+                id: 7,
+                name: "كاميرا المطار",
+                lat: 21.6796,
+                lng: 39.1564,
+                priority: "high",
+                type: "منطقة حيوية",
+                status: "نشطة",
+                coverage: 250
+            },
+            {
+                id: 8,
+                name: "كاميرا الجامعة",
+                lat: 21.4998,
+                lng: 39.2394,
+                priority: "medium",
+                type: "منطقة تعليمية",
+                status: "نشطة",
+                coverage: 160
+            }
+        ];
+        
+        let cameraMarkers = [];
+        let coverageCircles = [];
+        let showCoverage = true;
+        let currentRadius = 200;
+        let deleteMode = false;
+        let filteredCameras = cameras;
+        
+        // ألوان الأولوية
+        const priorityColors = {
+            high: '#e74c3c',
+            medium: '#f39c12',
+            low: '#27ae60'
+        };
+        
+        // إنشاء أيقونة كاميرا مخصصة
+        function createCameraIcon(priority, status) {
+            const color = priorityColors[priority];
+            const opacity = status === 'نشطة' ? 1 : 0.5;
+            
+            return L.divIcon({
+                className: 'custom-camera-icon',
+                html: `
+                    <div style="
+                        background: ${color};
+                        width: 25px;
+                        height: 25px;
+                        border-radius: 50%;
+                        border: 3px solid white;
+                        box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        opacity: ${opacity};
+                    ">
+                        <span style="color: white; font-size: 12px;">📹</span>
+                    </div>
+                `,
+                iconSize: [25, 25],
+                iconAnchor: [12, 12]
+            });
+        }
+        
+        // إضافة الكاميرات إلى الخريطة
+        function addCamerasToMap(camerasToShow = cameras) {
+            // إزالة الكاميرات الموجودة
+            cameraMarkers.forEach(marker => map.removeLayer(marker));
+            coverageCircles.forEach(circle => map.removeLayer(circle));
+            cameraMarkers = [];
+            coverageCircles = [];
+            
+            camerasToShow.forEach(camera => {
+                // إنشاء علامة الكاميرا
+                const marker = L.marker([camera.lat, camera.lng], {
+                    icon: createCameraIcon(camera.priority, camera.status)
+                });
+                
+                // إنشاء المحتوى المنبثق
+                const popupContent = `
+                    <div class="custom-popup">
+                        <div class="popup-header">${camera.name}</div>
+                        <div class="popup-content">
+                            <div class="popup-item">
+                                <span class="popup-label">الرقم التعريفي:</span>
+                                <span class="popup-value">#${camera.id}</span>
+                            </div>
+                            <div class="popup-item">
+                                <span class="popup-label">النوع:</span>
+                                <span class="popup-value">${camera.type}</span>
+                            </div>
+                            <div class="popup-item">
+                                <span class="popup-label">الأولوية:</span>
+                                <span class="popup-value">${camera.priority === 'high' ? 'عالية' : camera.priority === 'medium' ? 'متوسطة' : 'منخفضة'}</span>
+                            </div>
+                            <div class="popup-item">
+                                <span class="popup-label">الحالة:</span>
+                                <span class="popup-value">${camera.status}</span>
+                            </div>
+                            <div class="popup-item">
+                                <span class="popup-label">نطاق التغطية:</span>
+                                <span class="popup-value">${camera.coverage} متر</span>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                
+                marker.bindPopup(popupContent);
+                
+                // إضافة وظيفة النقر للحذف
+                marker.on('click', function(e) {
+                    if (deleteMode) {
+                        L.DomEvent.stopPropagation(e);
+                        deleteCamera(camera.id);
+                    }
+                });
+                
+                marker.addTo(map);
+                cameraMarkers.push(marker);
+                
+                // إنشاء دائرة التغطية
+                if (showCoverage) {
+                    const circle = L.circle([camera.lat, camera.lng], {
+                        color: priorityColors[camera.priority],
+                        fillColor: priorityColors[camera.priority],
+                        fillOpacity: 0.1,
+                        radius: camera.coverage,
+                        weight: 2
+                    });
+                    
+                    circle.addTo(map);
+                    coverageCircles.push(circle);
+                }
+            });
+            
+            updateStats(camerasToShow);
+        }
+        
+        // تحديث الإحصائيات
+        function updateStats(camerasToShow) {
+            const stats = {
+                total: camerasToShow.length,
+                high: camerasToShow.filter(c => c.priority === 'high').length,
+                medium: camerasToShow.filter(c => c.priority === 'medium').length,
+                low: camerasToShow.filter(c => c.priority === 'low').length
+            };
+            
+            document.getElementById('total-cameras').textContent = stats.total;
+            document.getElementById('high-priority').textContent = stats.high;
+            document.getElementById('medium-priority').textContent = stats.medium;
+            document.getElementById('low-priority').textContent = stats.low;
+        }
+        
+        // تبديل عرض نطاق التغطية
+        function toggleCoverage() {
+            showCoverage = !showCoverage;
+            addCamerasToMap(filteredCameras);
+        }
+        
+        // فلترة حسب الأولوية
+        function filterByPriority(priority) {
+            if (priority === 'all') {
+                filteredCameras = cameras;
+            } else {
+                filteredCameras = cameras.filter(camera => camera.priority === priority);
+            }
+            addCamerasToMap(filteredCameras);
+        }
+        
+        // تفعيل/إلغاء وضع الحذف
+        function toggleDeleteMode() {
+            deleteMode = !deleteMode;
+            const deleteBtn = document.getElementById('delete-btn');
+            const mapContainer = document.getElementById('map');
+            const deleteMessage = document.getElementById('delete-message');
+            
+            console.log('تم تغيير وضع الحذف إلى:', deleteMode); // للتشخيص
+            
+            if (deleteMode) {
+                deleteBtn.textContent = '❌ إلغاء وضع الحذف';
+                deleteBtn.classList.add('delete-mode');
+                mapContainer.classList.add('delete-cursor');
+                deleteMessage.classList.add('show');
+                
+                // تعطيل النوافذ المنبثقة أثناء وضع الحذف
+                cameraMarkers.forEach(marker => {
+                    marker.closePopup();
+                    marker.unbindPopup();
+                });
+                
+                alert('🗑️ تم تفعيل وضع الحذف\n\nانقر على أي كاميرا لحذفها من النظام');
+            } else {
+                deleteBtn.textContent = '🗑️ تفعيل وضع الحذف';
+                deleteBtn.classList.remove('delete-mode');
+                mapContainer.classList.remove('delete-cursor');
+                deleteMessage.classList.remove('show');
+                
+                // إعادة تفعيل النوافذ المنبثقة
+                addCamerasToMap(filteredCameras);
+            }
+        }
+        
+        // حذف كاميرا
+        function deleteCamera(cameraId) {
+            const cameraIndex = cameras.findIndex(camera => camera.id === cameraId);
+            if (cameraIndex !== -1) {
+                const cameraName = cameras[cameraIndex].name;
+                
+                if (confirm(`هل انت متاكد من حذف  ${cameraName}؟`)) {
+                    // حذف الكاميرا من المصفوفة الأساسية
+                    cameras.splice(cameraIndex, 1);
+                    
+                    // تحديث المصفوفة المفلترة
+                    const filteredIndex = filteredCameras.findIndex(camera => camera.id === cameraId);
+                    if (filteredIndex !== -1) {
+                        filteredCameras.splice(filteredIndex, 1);
+                    }
+                    
+                    // إعادة رسم الخريطة
+                    addCamerasToMap(filteredCameras);
+                    
+                    // إظهار رسالة تأكيد
+                    alert(`تم حذف ${cameraName} بنجاح`);
+                }
+            }
+        }
+        
+        // تحديث نطاق التغطية
+        function updateCoverageRadius(value) {
+            currentRadius = parseInt(value);
+            document.getElementById('coverage-value').textContent = currentRadius + ' متر';
+            
+            // تحديث دوائر التغطية
+            if (showCoverage) {
+                coverageCircles.forEach((circle, index) => {
+                    circle.setRadius(currentRadius);
+                });
+            }
+        }
+        
+		        // إضافة كاميرا جديدة
+        function addCamera() {
+            if (deleteMode) {
+                alert('يرجى إلغاء وضع الحذف أولاً قبل إضافة كاميرا جديدة');
+                return;
+            }
+            
+            // إظهار نافذة اختيار الأولوية
+            const priority = prompt(
+                "🎯 اختر أولوية الكاميرا الجديدة:\n\n" +
+                "1️⃣ عالية (للمناطق الحيوية والاستراتيجية)\n" +
+                "2️⃣ متوسطة (للمناطق التجارية والتعليمية)\n" +
+                "3️⃣ منخفضة (للمناطق السكنية)\n\n" +
+                "أدخل الرقم (1، 2، أو 3):",
+                "2"
+            );
+            
+            // التحقق من صحة الإدخال
+            if (priority === null) {
+                alert("❌ تم إلغاء إضافة الكاميرا");
+                return;
+            }
+            
+            let selectedPriority, priorityText, cameraType;
+            
+            switch(priority.trim()) {
+                case '1':
+                    selectedPriority = 'high';
+                    priorityText = 'عالية';
+                    cameraType = 'منطقة استراتيجية';
+                    break;
+                case '2':
+                    selectedPriority = 'medium';
+                    priorityText = 'متوسطة';
+                    cameraType = 'منطقة تجارية';
+                    break;
+                case '3':
+                    selectedPriority = 'low';
+                    priorityText = 'منخفضة';
+                    cameraType = 'منطقة سكنية';
+                    break;
+                default:
+                    alert("❌ اختيار غير صحيح! يرجى اختيار 1، 2، أو 3");
+                    return;
+            }
+            
+            // تأكيد الاختيار
+            const confirmChoice = confirm(
+                `📹 تأكيد إعدادات الكاميرا الجديدة:\n\n` +
+                `⭐ الأولوية: ${priorityText}\n` +
+                `📍 النوع: ${cameraType}\n` +
+                `📏 نطاق التغطية: ${currentRadius} متر\n\n` +
+                `✅ هل تريد المتابعة؟`
+            );
+            
+            if (!confirmChoice) {
+                alert("❌ تم إلغاء إضافة الكاميرا");
+                return;
+            }
+            
+            alert('📍 انقر على الخريطة لتحديد موقع الكاميرا الجديدة');
+            
+            map.once('click', function(e) {
+                // العثور على أكبر معرف موجود
+                const maxId = Math.max(...cameras.map(c => c.id), 0);
+                
+                // طلب اسم الكاميرا
+                const cameraName = prompt(
+                    "📝 أدخل اسم الكاميرا الجديدة:\n\n" +
+                    `📍 الموقع: ${e.latlng.lat.toFixed(4)}, ${e.latlng.lng.toFixed(4)}\n` +
+                    `⭐ الأولوية: ${priorityText}`,
+                    `كاميرا جديدة ${maxId + 1}`
+                );
+                
+                if (!cameraName || cameraName.trim() === '') {
+                    alert("❌ يجب إدخال اسم للكاميرا");
+                    return;
+                }
+                
+                const newCamera = {
+                    id: maxId + 1,
+                    name: cameraName.trim(),
+                    lat: e.latlng.lat,
+                    lng: e.latlng.lng,
+                    priority: selectedPriority,
+                    type: cameraType,
+                    status: "نشطة",
+                    coverage: currentRadius
+                };
+                
+                cameras.push(newCamera);
+                filteredCameras = cameras; // تحديث المصفوفة المفلترة
+                addCamerasToMap(filteredCameras);
+                
+                // رسالة تأكيد النجاح
+                alert(
+                    `✅ تم إضافة الكاميرا بنجاح!\n\n` +
+                    `📹 الاسم: ${newCamera.name}\n` +
+                    `⭐ الأولوية: ${priorityText}\n` +
+                    `📍 النوع: ${cameraType}\n` +
+                    `📏 التغطية: ${currentRadius} متر\n` +
+                    `🔢 إجمالي الكاميرات: ${cameras.length}`
+                );
+                
+                // فتح النافذة المنبثقة للكاميرا الجديدة
+                setTimeout(() => {
+                    if (cameraMarkers.length > 0) {
+                        cameraMarkers[cameraMarkers.length - 1].openPopup();
+                    }
+                }, 100);
+            });
+        }
+        
+        // تهيئة الخريطة
+        addCamerasToMap();
+        
+        // جعل handleCameraClick متاحة عالمياً
+        window.handleCameraClick = handleCameraClick;
+        
+        // إضافة تحكم في الطبقات
+        const baseMaps = {
+            "الخريطة الأساسية": L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'),
+            "صور الأقمار الصناعية": L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}')
+        };
+        
+        L.control.layers(baseMaps).addTo(map);
+        
+        // إضافة مقياس
+        L.control.scale({
+            metric: true,
+            imperial: false,
+            position: 'bottomleft'
+        }).addTo(map);
+    </script>
+</body>
+</html>
+        
+        // تهيئة الخريطة
+        addCamerasToMap();
+        
+        // جعل handleCameraClick متاحة عالمياً
+        window.handleCameraClick = handleCameraClick;
+        
+        // إضافة تحكم في الطبقات
+        const baseMaps = {
+            "الخريطة الأساسية": L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'),
+            "صور الأقمار الصناعية": L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}')
+        };
+        
+        L.control.layers(baseMaps).addTo(map);
+        
+        // إضافة مقياس
+        L.control.scale({
+            metric: true,
+            imperial: false,
+            position: 'bottomleft'
+        }).addTo(map);
+    </script>
+</body>
+</html>
